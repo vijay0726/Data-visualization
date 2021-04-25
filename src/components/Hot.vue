@@ -12,6 +12,7 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
 export default {
   name: "",
   data() {
@@ -22,7 +23,12 @@ export default {
       titleFontSize: 0,
     };
   },
+  created() {
+    // 在组件创建完成后，进行回调函数的注册
+    this.$socket.registerCallBack("hotproductData", this.getData);
+  },
   computed: {
+    ...mapState(["theme"]),
     catName() {
       if (!this.allData) {
         return "";
@@ -36,18 +42,34 @@ export default {
       };
     },
   },
+  watch: {
+    theme() {
+      console.log("主题切换了");
+      this.chartInstance.dispose(); // 销毁当前的图表
+      this.initChart(); // 重新以最新的主题名称初始化图表对象
+      this.screenAdapter(); // 完成屏幕的适配
+      this.updateChart(); // 更新图表的展示
+    },
+  },
   mounted() {
     this.initChart();
-    this.getData();
+    // this.getData();
+    this.$socket.send({
+      action: "getData",
+      socketType: "hotproductData",
+      chartName: "hotproduct",
+      value: "",
+    });
     window.addEventListener("resize", this.screenAdapter);
     this.screenAdapter();
   },
   destroyed() {
     window.removeEventListener("resize", this.screenAdapter);
+    this.$socket.unRegisterCallBack("hotproductData");
   },
   methods: {
     initChart() {
-      this.chartInstance = this.$echarts.init(this.$refs.hot_ref, "chalk");
+      this.chartInstance = this.$echarts.init(this.$refs.hot_ref, this.theme);
       const initOption = {
         title: {
           text: "▎热销商品占比",
@@ -98,13 +120,13 @@ export default {
       };
       this.chartInstance.setOption(initOption);
     },
-    async getData() {
-      const res = await this.$http.get("hotproduct");
-      this.allData = res.data;
-      console.log(this.allData);
-      this.upDateChart();
+    getData(ret) {
+      // const res = await this.$http.get("hotproduct");
+      this.allData = ret;
+      // console.log(this.allData);
+      this.updateChart();
     },
-    upDateChart() {
+    updateChart() {
       // 处理图表需要的数据
       const legendArr = this.allData[this.currentIndex].children.map((item) => {
         return item.name;
@@ -139,8 +161,8 @@ export default {
           },
         },
         legend: {
-          itemWidth: this.titleFontSize / 2,
-          itemHeight: this.titleFontSize / 2,
+          itemWidth: this.titleFontSize,
+          itemHeight: this.titleFontSize,
           itemGap: this.titleFontSize / 2,
           textStyle: {
             fontSize: this.titleFontSize / 2,
@@ -161,14 +183,14 @@ export default {
       if (this.currentIndex < 0) {
         this.currentIndex = this.allData.length - 1;
       }
-      this.upDateChart();
+      this.updateChart();
     },
     toRight() {
       this.currentIndex++;
       if (this.currentIndex > this.allData.length - 1) {
         this.currentIndex = 0;
       }
-      this.upDateChart();
+      this.updateChart();
     },
   },
 };

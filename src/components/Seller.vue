@@ -6,6 +6,7 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
 export default {
   name: "Seller",
   data() {
@@ -17,9 +18,32 @@ export default {
       timerId: null, // 定时器的标识
     };
   },
+  computed: {
+    ...mapState(["theme"]),
+  },
+  watch: {
+    theme() {
+      console.log("主题切换了");
+      this.chartInstance.dispose(); // 销毁当前的图表
+      this.initChart(); // 重新以最新的主题名称初始化图表对象
+      this.screenAdapter(); // 完成屏幕的适配
+      this.updateChart(); // 更新图表的展示
+    },
+  },
+  created() {
+    // 在组件创建完成后，进行回调函数的注册
+    this.$socket.registerCallBack("sellerData", this.getData);
+  },
   mounted() {
     this.initChart();
-    this.getData();
+    // this.getData();
+    // 发送数据给服务器，告诉服务器，我现在需要数据
+    this.$socket.send({
+      action: "getData",
+      socketType: "sellerData",
+      chartName: "seller",
+      value: "",
+    });
     window.addEventListener("resize", this.screenAdapter);
     // 在屏幕加载完成的时候，主动进行屏幕的适配
     this.screenAdapter();
@@ -28,10 +52,14 @@ export default {
     clearInterval(this.timerId);
     // 在页面销毁的时候，需要将监听器取消掉
     window.removeEventListener("resize", this.screenAdapter);
+    this.$socket.unRegisterCallBack("sellerData");
   },
   methods: {
     initChart() {
-      this.chartInstance = this.$echarts.init(this.$refs.seller_ref, "chalk");
+      this.chartInstance = this.$echarts.init(
+        this.$refs.seller_ref,
+        this.theme
+      );
       // 对图表对象进行初始化配置的控制
       const initOption = {
         title: {
@@ -104,10 +132,10 @@ export default {
       });
     },
     // 获取服务器的数据
-    async getData() {
-      const { data: res } = await this.$http.get("seller");
-      console.log(res);
-      this.allData = res;
+    async getData(ret) {
+      // const { data: res } = await this.$http.get("seller");
+      // console.log(res);
+      this.allData = ret;
       this.allData.sort((a, b) => {
         return a.value - b.value; // 从小到大进行排序
       });

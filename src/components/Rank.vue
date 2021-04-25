@@ -5,6 +5,7 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
 export default {
   name: "",
   data() {
@@ -16,8 +17,31 @@ export default {
       timerId: null, //定时器
     };
   },
+  computed: {
+    ...mapState(["theme"]),
+  },
+  watch: {
+    theme() {
+      console.log("主题切换了");
+      this.chartInstance.dispose(); // 销毁当前的图表
+      this.initChart(); // 重新以最新的主题名称初始化图表对象
+      this.screenAdapter(); // 完成屏幕的适配
+      this.updateChart(); // 更新图表的展示
+    },
+  },
+  created() {
+    // 在组件创建完成后，进行回调函数的注册
+    this.$socket.registerCallBack("rankData", this.getData);
+  },
   mounted() {
-    this.getData();
+    // this.getData();
+    // 发送数据给服务器，告诉服务器，我现在需要数据
+    this.$socket.send({
+      action: "getData",
+      socketType: "rankData",
+      chartName: "rank",
+      value: "",
+    });
     this.initChart();
     window.addEventListener("resize", this.screenAdapter);
     this.screenAdapter();
@@ -25,10 +49,11 @@ export default {
   destroyed() {
     window.addEventListener("resize", this.screenAdapter);
     clearInterval(this.timerId);
+    this.$socket.unRegisterCallBack("rankData");
   },
   methods: {
     initChart() {
-      this.chartInstance = this.$echarts.init(this.$refs.rank_ref, "chalk");
+      this.chartInstance = this.$echarts.init(this.$refs.rank_ref, this.theme);
       const initOption = {
         title: {
           text: "▎销售排行图表",
@@ -60,18 +85,18 @@ export default {
       });
     },
 
-    async getData() {
-      // 获取服务器数据，对 this.allData 进行赋值后，调用 upDateChart 更新图表
-      const { data: res } = await this.$http.get("rank");
-      this.allData = res;
+    getData(ret) {
+      // 获取服务器数据，对 this.allData 进行赋值后，调用 updateChart 更新图表
+      // const { data: res } = await this.$http.get("rank");
+      this.allData = ret;
       this.allData.sort((a, b) => {
         return b.value - a.value;
       });
       // console.log(res);
       this.startInterval();
-      this.upDateChart();
+      this.updateChart();
     },
-    upDateChart() {
+    updateChart() {
       const colorArr = [
         ["#0ba82c", "#4ff778"],
         ["#2e72bf", "#23e5e5"],
@@ -157,7 +182,7 @@ export default {
           this.startValue = 0;
           this.endValue = 9;
         }
-        this.upDateChart();
+        this.updateChart();
       }, 2000);
     },
   },

@@ -5,6 +5,7 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
 export default {
   data() {
     return {
@@ -14,18 +15,43 @@ export default {
       timerId: null, // 定时器的标识
     };
   },
+  computed: {
+    ...mapState(["theme"]),
+  },
+  watch: {
+    theme() {
+      console.log("主题切换了");
+      this.chartInstance.dispose(); // 销毁当前的图表
+      this.initChart(); // 重新以最新的主题名称初始化图表对象
+      this.screenAdapter(); // 完成屏幕的适配
+      this.updateChart(); // 更新图表的展示
+    },
+  },
+  created() {
+    // 在组件创建完成后，进行回调函数的注册
+    this.$socket.registerCallBack("stockData", this.getData);
+  },
   mounted() {
     this.initChart();
-    this.getData();
+    // this.getData();
+    this.$socket.send({
+      action: "getData",
+      socketType: "stockData",
+      chartName: "stock",
+      value: "",
+    });
+
     window.addEventListener("resize", this.screenAdapter);
+    this.screenAdapter();
   },
   destroyed() {
     window.removeEventListener("resize", this.screenAdapter);
     clearInterval(this.timerId);
+    this.$socket.unRegisterCallBack("stockData");
   },
   methods: {
     initChart() {
-      this.chartInstance = this.$echarts.init(this.$refs.stock_ref, "chalk");
+      this.chartInstance = this.$echarts.init(this.$refs.stock_ref, this.theme);
       const initOption = {
         title: {
           text: "▎库存和销量分析",
@@ -42,14 +68,14 @@ export default {
         this.startInterval();
       });
     },
-    async getData() {
-      const { data: res } = await this.$http.get("stock");
-      this.allData = res;
-      console.log(this.allData);
-      this.upDateChart();
+    getData(ret) {
+      // const { data: res } = await this.$http.get("stock");
+      this.allData = ret;
+      // console.log(this.allData);
+      this.updateChart();
       this.startInterval();
     },
-    upDateChart() {
+    updateChart() {
       const centerArr = [
         ["18%", "40%"],
         ["50%", "40%"],
@@ -71,7 +97,6 @@ export default {
       const seriesArr = showData.map((item, index) => {
         return {
           type: "pie",
-          radius: [110, 100],
           center: centerArr[index],
           hoverAnimation: false, // 关闭鼠标移入饼图时的动画效果
           labelLine: {
@@ -83,7 +108,7 @@ export default {
           },
           data: [
             {
-              name: item.name + "\n" + item.sales,
+              name: item.name + "\n\n" + item.sales,
               value: item.sales,
               itemStyle: {
                 color: new this.$echarts.graphic.LinearGradient(0, 1, 0, 0, [
@@ -116,7 +141,7 @@ export default {
     },
     screenAdapter() {
       const titleFontSize = (this.$refs.stock_ref.offsetWidth / 100) * 3.6;
-      const innerRadius = titleFontSize * 2;
+      const innerRadius = titleFontSize * 2.8;
       const outterRadius = innerRadius * 1.125;
       const adapterOption = {
         title: {
@@ -126,30 +151,35 @@ export default {
         },
         series: [
           {
+            type: "pie",
             radius: [outterRadius, innerRadius],
             label: {
               fontSize: titleFontSize / 2,
             },
           },
           {
+            type: "pie",
             radius: [outterRadius, innerRadius],
             label: {
               fontSize: titleFontSize / 2,
             },
           },
           {
+            type: "pie",
             radius: [outterRadius, innerRadius],
             label: {
               fontSize: titleFontSize / 2,
             },
           },
           {
+            type: "pie",
             radius: [outterRadius, innerRadius],
             label: {
               fontSize: titleFontSize / 2,
             },
           },
           {
+            type: "pie",
             radius: [outterRadius, innerRadius],
             label: {
               fontSize: titleFontSize / 2,
@@ -169,7 +199,7 @@ export default {
         if (this.currentIndex > 1) {
           this.currentIndex = 0;
         }
-        this.upDateChart(); // 再更改完 currentIndex 后 ，调用 this.updateChart()
+        this.updateChart(); // 再更改完 currentIndex 后 ，调用 this.updateChart()
       }, 4000);
     },
   },

@@ -5,6 +5,7 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
 import axios from "axios";
 import { getProvinceMapInfo } from "../utils/map_utils";
 export default {
@@ -16,18 +17,41 @@ export default {
       mapData: [], // 缓存请求到的省份地图矢量数据
     };
   },
+  computed: {
+    ...mapState(["theme"]),
+  },
+  watch: {
+    theme() {
+      console.log("主题切换了");
+      this.chartInstance.dispose(); // 销毁当前的图表
+      this.initChart(); // 重新以最新的主题名称初始化图表对象
+      this.screenAdapter(); // 完成屏幕的适配
+      this.updateChart(); // 更新图表的展示
+    },
+  },
+  created() {
+    // 在组件创建完成后，进行回调函数的注册
+    this.$socket.registerCallBack("mapData", this.getData);
+  },
   mounted() {
     this.initChart();
-    this.getData();
+    // this.getData();
+    this.$socket.send({
+      action: "getData",
+      socketType: "mapData",
+      chartName: "map",
+      value: "",
+    });
     window.addEventListener("resize", this.screenAdapter);
     this.screenAdapter();
   },
   destroyed() {
     window.removeEventListener("resize", this.screenAdapter);
+    this.$socket.unRegisterCallBack("mapData");
   },
   methods: {
     async initChart() {
-      this.chartInstance = this.$echarts.init(this.$refs.map_ref, "chalk");
+      this.chartInstance = this.$echarts.init(this.$refs.map_ref, this.theme);
       // 获取中国地图的矢量数据
       // http://localhost:8999/static/map/china.json
       const res = await axios.get(
@@ -81,13 +105,13 @@ export default {
         this.chartInstance.setOption(changeOption);
       });
     },
-    async getData() {
-      const { data: res } = await this.$http.get("map");
-      this.allData = res;
+    async getData(ret) {
+      // const { data: res } = await this.$http.get("map");
+      this.allData = ret;
       // console.log(this.allData);
-      this.upDateChart();
+      this.updateChart();
     },
-    upDateChart() {
+    updateChart() {
       // 处理图表需要的数据
       // 图例的数据
       const legendArr = this.allData.map((item) => {

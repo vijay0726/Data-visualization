@@ -25,6 +25,8 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
+import { getThemeValue } from "@/utils/theme_utils.js";
 export default {
   name: "",
   data() {
@@ -36,16 +38,30 @@ export default {
       titleFontSize: 0, // 指明标题的字体大小
     };
   },
+  created() {
+    // 在组件创建完成后，进行回调函数的注册
+    this.$socket.registerCallBack("trendData", this.getData);
+  },
   mounted() {
     this.initChart();
-    this.getData();
+    // this.getData();
+    // 发送数据给服务器，告诉服务器，我现在需要数据
+    this.$socket.send({
+      action: "getData",
+      socketType: "trendData",
+      chartName: "trend",
+      value: "",
+    });
     window.addEventListener("resize", this.screenAdapter);
     this.screenAdapter();
   },
   destroyed() {
     window.removeEventListener("resize", this.screenAdapter);
+    this.$socket.unRegisterCallBack("trendData");
   },
   computed: {
+    ...mapState(["theme"]),
+
     selectTypes() {
       if (!this.allData) {
         return [];
@@ -66,6 +82,7 @@ export default {
     comStyle() {
       return {
         fontSize: this.titleFontSize + "px",
+        color: getThemeValue(this.theme).titleColor,
       };
     },
     // 左边距
@@ -75,9 +92,18 @@ export default {
       };
     },
   },
+  watch: {
+    theme() {
+      console.log("主题切换了");
+      this.chartInstance.dispose(); // 销毁当前的图表
+      this.initChart(); // 重新以最新的主题名称初始化图表对象
+      this.screenAdapter(); // 完成屏幕的适配
+      this.updateChart(); // 更新图表的展示
+    },
+  },
   methods: {
     initChart() {
-      this.chartInstance = this.$echarts.init(this.$refs.trend_ref, "chalk");
+      this.chartInstance = this.$echarts.init(this.$refs.trend_ref, this.theme);
       const initOption = {
         grid: {
           left: "3%",
@@ -102,13 +128,14 @@ export default {
       this.chartInstance.setOption(initOption);
     },
     // 获取服务器数据
-    async getData() {
-      const { data: res } = await this.$http.get("trend");
-      console.log(res);
-      this.allData = res;
-      this.upDataChart();
+    // ret 就是服务器发送给客户端的图表的数据
+    getData(ret) {
+      // const { data: res } = await this.$http.get("trend");
+      // console.log(res);
+      this.allData = ret;
+      this.updateChart();
     },
-    upDataChart() {
+    updateChart() {
       // 半透明的颜色值
       const colorArr1 = [
         "rgba(11,168,44,0.5)",
@@ -179,7 +206,7 @@ export default {
     },
     handleSelect(currentType) {
       this.choiceType = currentType;
-      this.upDataChart();
+      this.updateChart();
       this.showChoice = false;
     },
   },
